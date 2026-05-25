@@ -696,6 +696,7 @@ function SearchScreen({ query,setQuery,handleSearch,results,plan,activeTab,setAc
       {activeTab==="schedule" && <ScheduleTab plan={plan} days={planDays} results={results} shoppingList={shoppingList} />}
       {activeTab==="shopping" && <ShoppingTab list={shoppingList} days={planDays} />}
       {activeTab==="disruption" && <DisruptionTab handleDisruption={handleDisruption} disruption={disruption} />}
+      <ExportBar plan={plan} days={planDays} shoppingList={shoppingList} />
     </div>
   );
 }
@@ -804,27 +805,25 @@ function ScheduleTab({ plan, days, results, shoppingList }) {
 
   const exportMD = () => {
     const obj   = plan.mainObj || "Mi objetivo";
-    let md = `# Plan Kéfir BioSystem — ${days} días
-`;
-    md += `**Objetivo:** ${obj}
-
-`;
+    let md = "# Plan Kéfir BioSystem — " + days + " días\n";
+    md += "**Objetivo:** " + obj + "\n\n";
     weeks.forEach((week, wi) => {
-      md += `## Semana ${wi+1}
-`;
+      md += "## Semana " + (wi+1) + "\n";
       week.forEach(d => {
-        const rec = d.isReset ? "Reset base (solo fermento)" : d.isTherapy ? "Receta terapéutica" : d.recipe ? `${d.recipe.id} — ${d.recipe.name}` : "Base fermentada";
-        md += `- **${d.label} ${d.dayNum}:** ${rec}
-`;
+        const rec = d.isReset ? "Reset base (solo fermento)"
+          : d.isTherapy ? "Receta terapéutica"
+          : d.recipe ? (d.recipe.id + " — " + d.recipe.name)
+          : "Base fermentada";
+        md += "- **" + d.label + " " + d.dayNum + ":** " + rec + "\n";
       });
-      md += "
-";
+      md += "\n";
     });
     if (shoppingList?.length) {
-      md += `## Lista de compras (${days} días)
-`;
-      shoppingList.forEach(i => { md += `- ${i.item}: **${i.qty > 1000 ? (i.qty/1000).toFixed(1)+"kg/L" : i.qty+"g/ml"}** (${i.weekly}g/semana)
-`; });
+      md += "## Lista de compras (" + days + " días)\n";
+      shoppingList.forEach(i => {
+        const qty = i.qty > 1000 ? (i.qty/1000).toFixed(1)+"kg/L" : i.qty+"g/ml";
+        md += "- " + i.item + ": **" + qty + "** (" + i.weekly + "g/semana)\n";
+      });
     }
     const blob = new Blob([md], {type:"text/markdown"});
     const a = document.createElement("a"); a.href=URL.createObjectURL(blob);
@@ -894,7 +893,7 @@ ${shoppingList.map(i=>`<div class="shop-item${i.bulk?" bulk":""}">
           <p style={styles.weekLabel}>Semana {wi+1}</p>
           <div style={{...styles.weekGrid, gridTemplateColumns:`repeat(${week.length},1fr)`}}>
             {week.map(d=>(
-              <div key={d.idx} style={{...styles.dayCell,...(d.isReset?styles.dayCellReset:{}),(d.isTherapy&&!d.isReset)?{...styles.dayCell,borderColor:"#f59e0b44",background:"#1a1a0a"}:{}}}>
+              <div key={d.idx} style={{...styles.dayCell,...(d.isReset?styles.dayCellReset:{}),...(d.isTherapy&&!d.isReset?{borderColor:"#f59e0b44",background:"#1a1a0a"}:{})}}>
                 <p style={styles.dayCellDay}>{d.label} {d.dayNum}</p>
                 {d.isReset
                   ? <p style={{...styles.dayCellRecipe,color:"#22c55e88"}}>🔄 Reset base</p>
@@ -1207,6 +1206,117 @@ function SectionTitle({ children }) {
   return <p style={styles.sectionTitle}>{children}</p>;
 }
 
+// ─── EXPORT BAR ──────────────────────────────────────────────────────────────
+function ExportBar({ plan, days, shoppingList }) {
+  if (!plan) return null;
+
+  const exportPlanMD = () => {
+    const obj = plan.mainObj || "Mi objetivo";
+    const NL = "\n";
+    let md = "# Plan Kéfir BioSystem — " + days + " días" + NL;
+    md += "**Objetivo:** " + obj + NL + NL;
+    const allR = [...(plan.morning||[]), ...(plan.lunch||[]), ...(plan.dinner||[])];
+    md += "## Recetas del plan" + NL;
+    allR.forEach(r => {
+      md += "### " + r.id + " — " + r.name + NL;
+      md += "- **Objetivo:** " + r.goal + NL;
+      md += "- **Base:** " + r.base + " · " + r.kcal + " kcal · " + r.protein + "g proteína" + NL;
+      md += "- **F1:** " + r.f1 + NL;
+      if (r.f2?.length) {
+        md += "- **F2 (" + r.f2time + "):**" + NL;
+        r.f2.forEach(f => { md += "  - " + f.i + ": " + f.q + (f.p?" — "+f.p:"") + NL; });
+      }
+      md += "- **Fresco al servir:**" + NL;
+      r.fresh.forEach(f => { md += "  - " + f + NL; });
+      md += "- **Por qué funciona:** " + r.why + NL + NL;
+    });
+    if (shoppingList?.length) {
+      md += "## Lista de compras (" + days + " días)" + NL;
+      const bulk = shoppingList.filter(i=>i.bulk);
+      const fresh = shoppingList.filter(i=>!i.bulk);
+      md += "### Comprar en cantidad" + NL;
+      bulk.forEach(i => { md += "- [ ] **" + i.item + "**: " + (i.qty>1000?(i.qty/1000).toFixed(1)+"kg/L":i.qty+"g") + " (" + i.weekly + "g/sem)" + NL; });
+      md += NL + "### Frescos" + NL;
+      fresh.forEach(i => { md += "- [ ] **" + i.item + "**: " + (i.qty>1000?(i.qty/1000).toFixed(1)+"kg":i.qty+"g") + " (" + i.weekly + "g/sem)" + NL; });
+    }
+    const blob = new Blob([md], {type:"text/markdown"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "plan-kefir-" + days + "dias.md"; a.click();
+  };
+
+  const exportPlanPDF = () => {
+    const obj = plan.mainObj || "Mi objetivo";
+    const allR = [...(plan.morning||[]), ...(plan.lunch||[]), ...(plan.dinner||[])];
+    const bulk = shoppingList?.filter(i=>i.bulk)||[];
+    const fresh = shoppingList?.filter(i=>!i.bulk)||[];
+    const recipeHTML = allR.map(r => `
+      <div class="recipe">
+        <div class="recipe-header">
+          <span class="recipe-id">${r.id}</span>
+          <span class="recipe-name">${r.name}</span>
+          <span class="recipe-kcal">${r.kcal} kcal · ${r.protein}g prot</span>
+        </div>
+        <div class="recipe-goal">${r.goal}</div>
+        <div class="recipe-cols">
+          <div><strong>F1:</strong> ${r.f1}</div>
+          ${r.f2?.length ? '<div><strong>F2 ('+r.f2time+'):</strong> '+r.f2.map(f=>f.i+' '+f.q).join(', ')+'</div>' : ''}
+          <div><strong>Fresco:</strong> ${r.fresh.join(' · ')}</div>
+        </div>
+        <div class="recipe-why"><strong>¿Por qué funciona?</strong> ${r.why}</div>
+      </div>`).join("");
+    const shopHTML = (items, title) => items.length ? `
+      <h3>${title}</h3>
+      <div class="shop-grid">
+        ${items.map(i=>'<div class="shop-item'+(i.bulk?' bulk':'')+'"><div class="chk">☐</div><strong>'+i.item+'</strong><div class="qty">'+(i.qty>1000?(i.qty/1000).toFixed(1)+'kg/L':i.qty+'g')+'</div><div class="week">'+i.weekly+'g/sem</div></div>').join('')}
+      </div>` : '';
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Plan Kéfir BioSystem</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Georgia,serif;color:#1f2937;padding:32px;max-width:900px;margin:0 auto}
+  h1{color:#1b4332;font-size:26px;border-bottom:3px solid #22c55e;padding-bottom:10px;margin-bottom:6px}
+  h2{color:#2d6a4f;font-size:15px;text-transform:uppercase;letter-spacing:1px;margin:28px 0 12px}
+  h3{color:#374151;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;margin:20px 0 8px}
+  .meta{color:#6b7280;font-size:13px;margin-bottom:28px}
+  .recipe{border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:14px;break-inside:avoid}
+  .recipe-header{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .recipe-id{font-size:11px;font-weight:800;color:#16a34a;letter-spacing:1px;background:#d8f3dc;padding:2px 8px;border-radius:10px}
+  .recipe-name{font-size:15px;font-weight:700;color:#1b4332;flex:1}
+  .recipe-kcal{font-size:11px;color:#6b7280}
+  .recipe-goal{font-size:12px;color:#6b7280;font-style:italic;margin-bottom:8px}
+  .recipe-cols{font-size:12px;color:#374151;line-height:1.7;margin-bottom:8px}
+  .recipe-why{font-size:11px;color:#6b7280;line-height:1.5;border-top:1px solid #f3f4f6;padding-top:8px;margin-top:4px}
+  .shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+  .shop-item{border:1px solid #e5e7eb;border-radius:6px;padding:10px;font-size:12px;position:relative}
+  .shop-item.bulk{border-color:#22c55e;background:#f0fdf4}
+  .chk{font-size:14px;color:#9ca3af;margin-bottom:4px}
+  .qty{font-size:17px;font-weight:700;color:#16a34a}
+  .week{font-size:10px;color:#9ca3af;margin-top:2px}
+  .disclaimer{margin-top:32px;padding:10px 14px;background:#f9fafb;border-radius:6px;font-size:11px;color:#6b7280;border-left:3px solid #22c55e}
+  @media print{body{padding:16px}h1{font-size:20px}.recipe{break-inside:avoid;margin-bottom:10px}}
+</style></head><body>
+<h1>Plan Kéfir BioSystem · ${days} días</h1>
+<p class="meta"><strong>Objetivo:</strong> ${obj} &nbsp;·&nbsp; <strong>Generado:</strong> ${new Date().toLocaleDateString('es-EC')}</p>
+<h2>Recetas del plan</h2>
+${recipeHTML}
+${bulk.length||fresh.length ? '<h2>Lista de compras</h2>'+shopHTML(bulk,'📦 Comprar en cantidad (fermentar, tostar, hidratar)')+shopHTML(fresh,'🛒 Frescos y complementos') : ''}
+<p class="disclaimer">⚕️ Este plan es educativo y no reemplaza el consejo médico profesional. Consulta a tu médico antes de iniciar cualquier protocolo.</p>
+</body></html>`;
+    const w = window.open("","_blank"); w.document.write(html); w.document.close();
+    setTimeout(()=>w.print(), 500);
+  };
+
+  return (
+    <div style={styles.exportBar}>
+      <span style={styles.exportBarLabel}>Exportar plan completo</span>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <button style={styles.exportBtnGreen} onClick={exportPlanMD}>⬇ Markdown (.md)</button>
+        <button style={styles.exportBtnGreen} onClick={exportPlanPDF}>🖨 PDF / Imprimir</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const BG   = "#0a0f0d";
 const BG2  = "#0f1a14";
@@ -1387,7 +1497,15 @@ const styles = {
   chatSendBtn:{ padding:"12px 20px", borderRadius:10, background:GREEN, border:"none", color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer" },
   chatSuggestions:{ display:"flex", flexWrap:"wrap", gap:6, padding:"10px 16px", background:BG2, borderTop:`1px solid ${BORDER}` },
   chatSugBtn:{ fontSize:11, padding:"5px 12px", borderRadius:16, border:`1px solid ${BORDER}`, background:BG3, color:TXT2, cursor:"pointer", fontFamily:"'Georgia', serif" },
-  exportBtn:{ padding:"7px 14px", borderRadius:8, border:`1px solid ${BORDER}`, background:BG2, color:TXT2, fontSize:12, cursor:"pointer", fontFamily:"'Georgia', serif", whiteSpace:"nowrap" },
+  exportBtn:{ padding:"8px 16px", borderRadius:8, border:`1px solid ${GREEN}`, background:BG2, color:GREEN, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'Georgia', serif", whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:5 },
+  exportBar:{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12,
+    background:`linear-gradient(135deg, ${BG3}, ${BG2})`, border:`1px solid ${GREEN}44`,
+    borderRadius:12, padding:"14px 20px", marginTop:32, position:"sticky", bottom:16, zIndex:10,
+    backdropFilter:"blur(8px)" },
+  exportBarLabel:{ fontSize:11, letterSpacing:2, color:GREEN, fontWeight:600 },
+  exportBtnGreen:{ padding:"9px 18px", borderRadius:8, border:`1px solid ${GREEN}`,
+    background:`linear-gradient(135deg,${GREEN},${GREEN2})`, color:"#fff", fontSize:13,
+    fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:6 },
   // EMPTY
   emptyState:{ textAlign:"center", color:TXT2, fontSize:14, padding:40 },
 };
