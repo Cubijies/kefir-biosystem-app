@@ -387,7 +387,13 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([{role:"assistant",text:"¡Hola! Soy tu asistente Kéfir BioSystem. Puedo ayudarte a elegir recetas, calcular ingredientes, resolver dudas o sugerirte combinaciones. ¿Qué necesitas hoy?"}]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [groqKey, setGroqKey] = useState("");
+  const [groqKey, setGroqKey] = useState(() => {
+    try { return localStorage.getItem("groq_api_key") || ""; } catch { return ""; }
+  });
+  const handleSetGroqKey = (key) => {
+    setGroqKey(key);
+    try { localStorage.setItem("groq_api_key", key); } catch {}
+  };
   const chatRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -582,7 +588,7 @@ Responde siempre en español. Sé específico, práctico y cálido. Si preguntan
       {screen==="chat" && (
         <ChatScreen
           messages={chatMessages} input={chatInput} setInput={setChatInput}
-          onSend={sendChat} loading={chatLoading} chatRef={chatRef} inputRef={inputRef} groqKey={groqKey} setGroqKey={setGroqKey}
+          onSend={sendChat} loading={chatLoading} chatRef={chatRef} inputRef={inputRef} groqKey={groqKey} setGroqKey={handleSetGroqKey}
         />
       )}
     </div>
