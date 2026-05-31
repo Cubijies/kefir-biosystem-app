@@ -476,6 +476,8 @@ export default function App() {
   };
 
   // ── CHAT ──────────────────────────────────────────────────────────────────
+  const GROQ_API_KEY = "TU_API_KEY_DE_GROQ"; // ← Reemplaza con tu clave de Groq
+
   const sendChat = async () => {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = chatInput.trim();
@@ -492,26 +494,30 @@ ${RECIPES.map(r=>`${r.id}: ${r.name} — Objetivo: ${r.goal} — ${r.kcal} kcal 
 Responde siempre en español. Sé específico, práctico y cálido. Si preguntan por una receta, da los ingredientes clave. Si preguntan por segunda fermentación con un ingrediente, di si es posible y cómo. Si hay contraindicaciones, menciónalas. Máximo 200 palabras. No uses markdown, solo texto plano con saltos de línea.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROQ_API_KEY}`
+        },
         body: JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          system: systemPrompt,
-          messages:[
-            ...chatMessages.filter(m=>m.role!=="assistant"||chatMessages.indexOf(m)>0).map(m=>({
-              role:m.role, content:m.text
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 500,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...chatMessages.map(m => ({
+              role: m.role === "assistant" ? "assistant" : "user",
+              content: m.text
             })),
-            {role:"user", content:userMsg}
+            { role: "user", content: userMsg }
           ]
         })
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text || "No pude responder en este momento.";
-      setChatMessages(m => [...m, {role:"assistant", text}]);
+      const text = data.choices?.[0]?.message?.content || "No pude responder en este momento.";
+      setChatMessages(m => [...m, { role:"assistant", text }]);
     } catch {
-      setChatMessages(m => [...m, {role:"assistant", text:"Error de conexión. Intenta de nuevo."}]);
+      setChatMessages(m => [...m, { role:"assistant", text:"Error de conexión. Intenta de nuevo." }]);
     }
     setChatLoading(false);
     setTimeout(()=>{ chatRef.current?.scrollTo({top:9999,behavior:"smooth"}); }, 100);
