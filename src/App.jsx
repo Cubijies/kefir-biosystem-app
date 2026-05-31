@@ -387,6 +387,7 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([{role:"assistant",text:"¡Hola! Soy tu asistente Kéfir BioSystem. Puedo ayudarte a elegir recetas, calcular ingredientes, resolver dudas o sugerirte combinaciones. ¿Qué necesitas hoy?"}]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [groqKey, setGroqKey] = useState("");
   const chatRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -476,10 +477,12 @@ export default function App() {
   };
 
   // ── CHAT ──────────────────────────────────────────────────────────────────
-  const GROQ_API_KEY = "TU_API_KEY_DE_GROQ"; // ← Reemplaza con tu clave de Groq
-
   const sendChat = async () => {
     if (!chatInput.trim() || chatLoading) return;
+    if (!groqKey.trim()) {
+      setChatMessages(m => [...m, { role:"assistant", text:"⚠️ Primero ingresa tu API key de Groq en el campo de arriba." }]);
+      return;
+    }
     const userMsg = chatInput.trim();
     setChatInput("");
     setChatMessages(m => [...m, { role:"user", text: userMsg }]);
@@ -498,7 +501,7 @@ Responde siempre en español. Sé específico, práctico y cálido. Si preguntan
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${GROQ_API_KEY}`
+          "Authorization": `Bearer ${groqKey.trim()}`
         },
         body: JSON.stringify({
           model: "llama-3.3-70b-versatile",
@@ -579,7 +582,7 @@ Responde siempre en español. Sé específico, práctico y cálido. Si preguntan
       {screen==="chat" && (
         <ChatScreen
           messages={chatMessages} input={chatInput} setInput={setChatInput}
-          onSend={sendChat} loading={chatLoading} chatRef={chatRef} inputRef={inputRef}
+          onSend={sendChat} loading={chatLoading} chatRef={chatRef} inputRef={inputRef} groqKey={groqKey} setGroqKey={setGroqKey}
         />
       )}
     </div>
@@ -623,12 +626,12 @@ function HomeScreen({ setScreen, setQuery, handleSearch, query }) {
 
       <div style={styles.featGrid}>
         {[
-          {icon:"🧪",title:"36 Recetas",sub:"Organizadas por objetivo, familia y momento del día"},
-          {icon:"📅",title:"Cronograma 30 días",sub:"Rotación inteligente para no aburrirte"},
-          {icon:"🛒",title:"Lista de compras",sub:"Ingredientes calculados para todo tu plan"},
-          {icon:"💬",title:"Consulta IA",sub:"Pregunta dudas, recetas o combinaciones de ingredientes"},
+          {icon:"🧪",title:"36 Recetas",sub:"Organizadas por objetivo, familia y momento del día",screen:"recipes"},
+          {icon:"📅",title:"Cronograma 30 días",sub:"Rotación inteligente para no aburrirte",screen:"search"},
+          {icon:"🛒",title:"Lista de compras",sub:"Ingredientes calculados para todo tu plan",screen:"search"},
+          {icon:"💬",title:"Consulta IA",sub:"Pregunta dudas, recetas o combinaciones de ingredientes",screen:"chat"},
         ].map(f=>(
-          <div key={f.title} style={styles.featCard}>
+          <div key={f.title} style={{...styles.featCard,cursor:"pointer"}} onClick={()=>setScreen(f.screen)}>
             <span style={styles.featIcon}>{f.icon}</span>
             <p style={styles.featTitle}>{f.title}</p>
             <p style={styles.featSub}>{f.sub}</p>
@@ -1150,13 +1153,28 @@ function RecipesGrid({ recipes, setActiveRecipe }) {
 }
 
 // ─── CHAT SCREEN ─────────────────────────────────────────────────────────────
-function ChatScreen({ messages, input, setInput, onSend, loading, chatRef, inputRef }) {
+function ChatScreen({ messages, input, setInput, onSend, loading, chatRef, inputRef, groqKey, setGroqKey }) {
+  const [showKey, setShowKey] = useState(false);
   return (
     <div style={styles.chatWrap}>
       <div style={styles.chatHeader}>
         <span style={styles.chatHeaderDot}/>
         <p style={styles.chatHeaderTitle}>Asistente Kéfir BioSystem</p>
         <p style={styles.chatHeaderSub}>Pregunta recetas, combinaciones, tiempos, ingredientes...</p>
+      </div>
+      <div style={{padding:"12px 16px", background:"#0d1f16", borderBottom:"1px solid #1e3a28", display:"flex", gap:8, alignItems:"center", flexWrap:"wrap"}}>
+        <span style={{fontSize:11, color:"#94a3b8", whiteSpace:"nowrap"}}>🔑 Groq API Key:</span>
+        <input
+          type={showKey ? "text" : "password"}
+          value={groqKey}
+          onChange={e=>setGroqKey(e.target.value)}
+          placeholder="gsk_..."
+          style={{flex:1, minWidth:180, padding:"6px 10px", borderRadius:8, border:"1px solid #1e3a28", background:"#142018", color:"#e2e8f0", fontSize:12, outline:"none", fontFamily:"monospace"}}
+        />
+        <button onClick={()=>setShowKey(s=>!s)} style={{padding:"6px 10px", borderRadius:8, border:"1px solid #1e3a28", background:"#142018", color:"#94a3b8", fontSize:11, cursor:"pointer"}}>
+          {showKey ? "Ocultar" : "Ver"}
+        </button>
+        {groqKey.trim() && <span style={{fontSize:11, color:"#22c55e"}}>✓ Listo</span>}
       </div>
       <div ref={chatRef} style={styles.chatMessages}>
         {messages.map((m,i)=>(
